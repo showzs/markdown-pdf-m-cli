@@ -1,0 +1,32 @@
+{
+  "name": "markdown-pdf-m-cli",
+  "version": "1.0.0",
+  "description": "markdown to pdf for cli",
+  "main": "index.js",
+  "bin": {
+    "markdown-pdf-m": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "emoji-images": "^0.1.1",
+    "gray-matter": "^4.0.2",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^13.0.1",
+    "markdown-it-checkbox": "^1.1.0",
+    "markdown-it-container": "^2.0.0",
+    "markdown-it-emoji": "^1.4.0",
+    "markdown-it-include": "^2.0.0",
+    "markdown-it-named-headers": "0.0.4",
+    "markdown-it-plantuml": "^1.4.1",
+    "mkdirp": "^1.0.3",
+    "mustache": "^4.0.1",
+    "puppeteer-core": "^2.1.1",
+    "rimraf": "^3.0.2"
+   }
+}
