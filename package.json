@@ -13,6 +13,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@puppeteer/browsers": "^2.10.10",
     "cheerio": "^1.0.0-rc.12",
     "emoji-images": "^0.1.1",
     "gray-matter": "^4.0.2",
@@ -25,7 +26,7 @@
     "markdown-it-plantuml": "^1.4.1",
     "mkdirp": "^1.0.3",
     "mustache": "^4.0.1",
-    "puppeteer-core": "^2.1.1",
+    "puppeteer-core": "^24.23.0",
     "rimraf": "^3.0.2"
-   }
+  }
 }
