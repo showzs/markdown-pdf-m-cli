@@ -406,7 +406,7 @@ function convertMarkdownToHtml(filename, type, text, config) {
     };
   }
 
-  md.use(require('markdown-it-named-headers'), { slugify: Slug });
+  applyHeadingIds(md, Slug);
   md.use(require('markdown-it-container'), '', {
     validate(name) {
       return name.trim().length > 0;
@@ -515,6 +515,43 @@ function buildStyleLinks(styles, resourcePath, config) {
     .filter(Boolean)
     .map((href) => `<link rel="stylesheet" href="${href}" type="text/css">`)
     .join('');
+}
+
+function applyHeadingIds(md, slugify) {
+  const seen = Object.create(null);
+  const defaultRender = md.renderer.rules.heading_open || function (tokens, idx, options, env, self) {
+    return self.renderToken(tokens, idx, options);
+  };
+
+  md.renderer.rules.heading_open = function (tokens, idx, options, env, self) {
+    const token = tokens[idx];
+    if (token && !token.attrGet('id')) {
+      const inlineToken = tokens[idx + 1];
+      let text = '';
+      if (inlineToken && inlineToken.type === 'inline') {
+        text = inlineToken.content || '';
+        if (!text && Array.isArray(inlineToken.children)) {
+          text = inlineToken.children.map((child) => child.content || '').join('');
+        }
+      }
+
+      text = text.trim();
+      if (text) {
+        let slug = slugify(text);
+        if (slug) {
+          const baseSlug = slug;
+          if (Object.prototype.hasOwnProperty.call(seen, baseSlug)) {
+            seen[baseSlug] += 1;
+            slug = `${baseSlug}-${seen[baseSlug]}`;
+          } else {
+            seen[baseSlug] = 0;
+          }
+          token.attrSet('id', slug);
+        }
+      }
+    }
+    return defaultRender(tokens, idx, options, env, self);
+  };
 }
 
 function makeCss(filename) {
