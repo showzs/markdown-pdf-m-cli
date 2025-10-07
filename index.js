@@ -16,12 +16,45 @@ const mustache = require('mustache');
 const rimraf = require('rimraf');
 
 const puppeteer = require('puppeteer-core');
+const {
+  install: installBrowser,
+  Browser,
+  detectBrowserPlatform
+} = require('@puppeteer/browsers');
+const { PUPPETEER_REVISIONS } = require('puppeteer-core/lib/cjs/puppeteer/revisions.js');
 
 const DEFAULT_CONFIG_FILE = path.join(__dirname, 'config', 'defaults.json');
 const USER_CONFIG_CANDIDATE = 'markdown-pdf.config.json';
 const SUPPORTED_TYPES = ['html', 'pdf', 'png', 'jpeg'];
+const BROWSER_CACHE_DIR = path.join(os.homedir(), '.cache', 'markdown-pdf-m-cli');
 
 let INSTALL_CHECK = false;
+let cachedExecutablePath = null;
+
+function getBrowserCacheDir() {
+  const envOverride = process.env.MARKDOWN_PDF_BROWSER_CACHE;
+  if (envOverride) {
+    return path.resolve(envOverride);
+  }
+  return BROWSER_CACHE_DIR;
+}
+
+function resolveExecutableOverride(customPath) {
+  if (customPath && typeof customPath === 'string') {
+    const resolved = path.resolve(customPath);
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
+  }
+  const envPath = process.env.MARKDOWN_PDF_PUPPETEER_EXECUTABLE_PATH || process.env.MARKDOWN_PDF_EXECUTABLE_PATH;
+  if (envPath) {
+    const resolved = path.resolve(envPath);
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
+  }
+  return null;
+}
 
 (async () => {
   await main().catch((error) => {
@@ -274,48 +307,64 @@ function detectLanguage(config) {
 }
 
 async function ensureChromium(markdownPdfConfig, config) {
-  if (INSTALL_CHECK) {
-    return markdownPdfConfig?.executablePath || puppeteer.executablePath();
-  }
-
-  if (markdownPdfConfig?.executablePath && fs.existsSync(markdownPdfConfig.executablePath)) {
+  const overridePath = resolveExecutableOverride(markdownPdfConfig?.executablePath);
+  if (overridePath) {
     INSTALL_CHECK = true;
-    return markdownPdfConfig.executablePath;
+    cachedExecutablePath = overridePath;
+    return cachedExecutablePath;
   }
 
-  const bundled = puppeteer.executablePath();
-  if (bundled && fs.existsSync(bundled)) {
+  if (cachedExecutablePath && fs.existsSync(cachedExecutablePath)) {
     INSTALL_CHECK = true;
-    return bundled;
+    return cachedExecutablePath;
   }
 
-  return installChromium(config);
+  try {
+    const bundled = puppeteer.executablePath();
+    if (bundled && fs.existsSync(bundled)) {
+      INSTALL_CHECK = true;
+      cachedExecutablePath = bundled;
+      return cachedExecutablePath;
+    }
+  } catch (error) {
+    // ignore and attempt installation below
+  }
+
+  cachedExecutablePath = await installChromium(config);
+  return cachedExecutablePath;
 }
 
 async function installChromium(config) {
   console.log('[markdown-pdf-m-cli] Installing Chromium ...');
   setProxy(config);
 
-  const browserFetcher = puppeteer.createBrowserFetcher();
-  const pkg = safeRequire(path.join(__dirname, 'node_modules', 'puppeteer-core', 'package.json'), {});
-  const revision = pkg?.puppeteer?.chromium_revision;
-  if (!revision) {
-    throw new Error('Unable to determine Chromium revision for puppeteer-core.');
+  const revision = PUPPETEER_REVISIONS.chrome;
+  const platform = detectBrowserPlatform();
+  if (!platform) {
+    throw new Error('Unsupported platform for Chromium download.');
   }
 
-  const revisionInfo = browserFetcher.revisionInfo(revision);
-  await browserFetcher.download(revisionInfo.revision, (downloadedBytes, totalBytes) => {
-    if (!totalBytes) {
-      return;
+  const cacheDir = getBrowserCacheDir();
+  await fs.promises.mkdir(cacheDir, { recursive: true });
+
+  const installed = await installBrowser({
+    browser: Browser.CHROME,
+    buildId: revision,
+    cacheDir,
+    // downloadProgressCallback can print progress indicator
+    downloadProgressCallback: (downloadedBytes, totalBytes) => {
+      if (!totalBytes) {
+        return;
+      }
+      const progress = Math.floor((downloadedBytes / totalBytes) * 100);
+      process.stdout.write(`\r[markdown-pdf-m-cli] Downloading Chromium... ${progress}%`);
     }
-    const progress = Math.floor((downloadedBytes / totalBytes) * 100);
-    process.stdout.write(`\r[markdown-pdf-m-cli] Downloading Chromium... ${progress}%`);
   });
   process.stdout.write('\n');
 
   INSTALL_CHECK = true;
-  console.log(`[markdown-pdf-m-cli] Chromium downloaded to ${revisionInfo.folderPath}`);
-  return revisionInfo.executablePath;
+  console.log(`[markdown-pdf-m-cli] Chromium downloaded to ${installed.executablePath}`);
+  return installed.executablePath;
 }
 
 function convertMarkdownToHtml(filename, type, text, config) {
