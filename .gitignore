@@ -6,3 +6,4 @@ work/**
 *.bat
 .eslintrc.json
 .env
+tmp-output/

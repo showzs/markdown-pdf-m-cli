@@ -19,7 +19,10 @@ const puppeteer = require('puppeteer-core');
 const {
   install: installBrowser,
   Browser,
-  detectBrowserPlatform
+  detectBrowserPlatform,
+  resolveBuildId,
+  computeExecutablePath,
+  getInstalledBrowsers
 } = require('@puppeteer/browsers');
 const { PUPPETEER_REVISIONS } = require('puppeteer-core/lib/cjs/puppeteer/revisions.js');
 
@@ -31,7 +34,11 @@ const BROWSER_CACHE_DIR = path.join(os.homedir(), '.cache', 'markdown-pdf-m-cli'
 let INSTALL_CHECK = false;
 let cachedExecutablePath = null;
 
-function getBrowserCacheDir() {
+function getBrowserCacheDir(configCacheDir) {
+  // Priority: config > env > default
+  if (configCacheDir && typeof configCacheDir === 'string' && configCacheDir.trim()) {
+    return path.resolve(configCacheDir);
+  }
   const envOverride = process.env.MARKDOWN_PDF_BROWSER_CACHE;
   if (envOverride) {
     return path.resolve(envOverride);
@@ -52,6 +59,71 @@ function resolveExecutableOverride(customPath) {
     if (fs.existsSync(resolved)) {
       return resolved;
     }
+  }
+  return null;
+}
+
+function resolveBrowserType(browserConfig) {
+  const browser = (browserConfig || 'chrome').toLowerCase().trim();
+  switch (browser) {
+    case 'chrome':
+      return Browser.CHROME;
+    case 'chromium':
+      return Browser.CHROMIUM;
+    case 'firefox':
+      return Browser.FIREFOX;
+    default:
+      console.warn(`[markdown-pdf-m-cli] Unsupported browser type: ${browser}, defaulting to chrome`);
+      return Browser.CHROME;
+  }
+}
+
+function resolveBrowserBuildId(browserType, customBuildId) {
+  // If custom build ID is provided, use it
+  if (customBuildId && typeof customBuildId === 'string' && customBuildId.trim()) {
+    return customBuildId.trim();
+  }
+  
+  // Use default revision for chrome
+  if (browserType === Browser.CHROME) {
+    return PUPPETEER_REVISIONS.chrome;
+  }
+  
+  // Use default revision for chromium
+  if (browserType === Browser.CHROMIUM) {
+    return PUPPETEER_REVISIONS.chromium || PUPPETEER_REVISIONS.chrome;
+  }
+  
+  // For Firefox, use stable
+  if (browserType === Browser.FIREFOX) {
+    return 'stable';
+  }
+  
+  return PUPPETEER_REVISIONS.chrome;
+}
+
+async function findInstalledBrowser(browserType, buildId, cacheDir) {
+  try {
+    const installed = await getInstalledBrowsers({ cacheDir });
+    const match = installed.find(
+      (browser) => browser.browser === browserType && browser.buildId === buildId
+    );
+    if (match) {
+      const platform = detectBrowserPlatform();
+      if (!platform) {
+        return null;
+      }
+      const executablePath = computeExecutablePath({
+        browser: browserType,
+        buildId,
+        cacheDir
+      });
+      if (executablePath && fs.existsSync(executablePath)) {
+        return executablePath;
+      }
+    }
+  } catch (error) {
+    // Ignore errors when checking for installed browsers
   }
   return null;
 }
@@ -330,26 +402,49 @@ async function ensureChromium(markdownPdfConfig, config) {
     // ignore and attempt installation below
   }
 
-  cachedExecutablePath = await installChromium(config);
+  // Resolve browser configuration
+  const browserType = resolveBrowserType(markdownPdfConfig?.browser);
+  const buildId = resolveBrowserBuildId(browserType, markdownPdfConfig?.buildId);
+  const cacheDir = getBrowserCacheDir(markdownPdfConfig?.cacheDir);
+
+  // Check for installed browser with matching buildId
+  const installedPath = await findInstalledBrowser(browserType, buildId, cacheDir);
+  if (installedPath) {
+    console.log(`[markdown-pdf-m-cli] Using cached browser at ${installedPath}`);
+    INSTALL_CHECK = true;
+    cachedExecutablePath = installedPath;
+    return cachedExecutablePath;
+  }
+
+  cachedExecutablePath = await installChromium(config, browserType, buildId, cacheDir);
   return cachedExecutablePath;
 }
 
-async function installChromium(config) {
-  console.log('[markdown-pdf-m-cli] Installing Chromium ...');
+async function installChromium(config, browserType, buildId, cacheDir) {
+  console.log(`[markdown-pdf-m-cli] Installing ${browserType} (build: ${buildId})...`);
   setProxy(config);
 
-  const revision = PUPPETEER_REVISIONS.chrome;
   const platform = detectBrowserPlatform();
   if (!platform) {
-    throw new Error('Unsupported platform for Chromium download.');
+    throw new Error('Unsupported platform for browser download.');
   }
 
-  const cacheDir = getBrowserCacheDir();
+  // Resolve the build ID if it's a tag like 'stable' or 'latest'
+  let resolvedBuildId = buildId;
+  try {
+    resolvedBuildId = await resolveBuildId(browserType, platform, buildId);
+    if (resolvedBuildId !== buildId) {
+      console.log(`[markdown-pdf-m-cli] Resolved build ID: ${buildId} -> ${resolvedBuildId}`);
+    }
+  } catch (error) {
+    console.warn(`[markdown-pdf-m-cli] Could not resolve build ID, using: ${buildId}`);
+  }
+
   await fs.promises.mkdir(cacheDir, { recursive: true });
 
   const installed = await installBrowser({
-    browser: Browser.CHROME,
-    buildId: revision,
+    browser: browserType,
+    buildId: resolvedBuildId,
     cacheDir,
     // downloadProgressCallback can print progress indicator
     downloadProgressCallback: (downloadedBytes, totalBytes) => {
@@ -357,13 +452,13 @@ async function installChromium(config) {
         return;
       }
       const progress = Math.floor((downloadedBytes / totalBytes) * 100);
-      process.stdout.write(`\r[markdown-pdf-m-cli] Downloading Chromium... ${progress}%`);
+      process.stdout.write(`\r[markdown-pdf-m-cli] Downloading ${browserType}... ${progress}%`);
     }
   });
   process.stdout.write('\n');
 
   INSTALL_CHECK = true;
-  console.log(`[markdown-pdf-m-cli] Chromium downloaded to ${installed.executablePath}`);
+  console.log(`[markdown-pdf-m-cli] Browser downloaded to ${installed.executablePath}`);
   return installed.executablePath;
 }
 
