@@ -407,8 +407,22 @@ async function ensureChromium(markdownPdfConfig, config) {
   const buildId = resolveBrowserBuildId(browserType, markdownPdfConfig?.buildId);
   const cacheDir = getBrowserCacheDir(markdownPdfConfig?.cacheDir);
 
-  // Check for installed browser with matching buildId
-  const installedPath = await findInstalledBrowser(browserType, buildId, cacheDir);
+  // Resolve the build ID if it's a tag like 'stable' or 'latest'
+  let resolvedBuildId = buildId;
+  try {
+    const platform = detectBrowserPlatform();
+    if (platform) {
+      resolvedBuildId = await resolveBuildId(browserType, platform, buildId);
+      if (resolvedBuildId !== buildId) {
+        console.log(`[markdown-pdf-m-cli] Resolved build ID: ${buildId} -> ${resolvedBuildId}`);
+      }
+    }
+  } catch (error) {
+    // If resolution fails, use the original buildId
+  }
+
+  // Check for installed browser with matching resolved buildId
+  const installedPath = await findInstalledBrowser(browserType, resolvedBuildId, cacheDir);
   if (installedPath) {
     console.log(`[markdown-pdf-m-cli] Using cached browser at ${installedPath}`);
     INSTALL_CHECK = true;
@@ -416,28 +430,17 @@ async function ensureChromium(markdownPdfConfig, config) {
     return cachedExecutablePath;
   }
 
-  cachedExecutablePath = await installChromium(config, browserType, buildId, cacheDir);
+  cachedExecutablePath = await installChromium(config, browserType, resolvedBuildId, cacheDir);
   return cachedExecutablePath;
 }
 
-async function installChromium(config, browserType, buildId, cacheDir) {
-  console.log(`[markdown-pdf-m-cli] Installing ${browserType} (build: ${buildId})...`);
+async function installChromium(config, browserType, resolvedBuildId, cacheDir) {
+  console.log(`[markdown-pdf-m-cli] Installing ${browserType} (build: ${resolvedBuildId})...`);
   setProxy(config);
 
   const platform = detectBrowserPlatform();
   if (!platform) {
     throw new Error('Unsupported platform for browser download.');
-  }
-
-  // Resolve the build ID if it's a tag like 'stable' or 'latest'
-  let resolvedBuildId = buildId;
-  try {
-    resolvedBuildId = await resolveBuildId(browserType, platform, buildId);
-    if (resolvedBuildId !== buildId) {
-      console.log(`[markdown-pdf-m-cli] Resolved build ID: ${buildId} -> ${resolvedBuildId}`);
-    }
-  } catch (error) {
-    console.warn(`[markdown-pdf-m-cli] Could not resolve build ID, using: ${buildId}`);
   }
 
   await fs.promises.mkdir(cacheDir, { recursive: true });
