@@ -419,6 +419,7 @@ async function ensureChromium(markdownPdfConfig, config) {
     }
   } catch (error) {
     // If resolution fails, use the original buildId
+    console.warn(`[markdown-pdf-m-cli] Could not resolve build ID '${buildId}', using as-is`);
   }
 
   // Check for installed browser with matching resolved buildId
