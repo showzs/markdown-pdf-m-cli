@@ -64,5 +64,6 @@ markdown-pdf-m docs/design.md --config ./markdown-pdf.config.json --output ./dis
 
 ## Notes
 
-- Chromium is downloaded automatically if no executable is available. Set `markdownPdf.executablePath` in your config to reuse an existing Chrome/Chromium installation.
+- Chromium/Chrome is downloaded automatically if no executable is available. To reuse an existing installation, set `markdownPdf.browser.executablePath` (or the legacy `markdownPdf.executablePath`).
+- To pin a specific browser build, provide `markdownPdf.browser.name` (`chrome`, `chromium`, or `chrome-headless-shell`) and `markdownPdf.browser.version` (for example `"stable"`, `"canary"`, or an explicit version like `"141.0.7390.54"`). The CLI will download and cache the requested build automatically.
 - Proxy settings can be provided through `http.proxy` in the configuration file.

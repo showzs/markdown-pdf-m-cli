@@ -23,6 +23,13 @@
     "mermaidServer": "https://unpkg.com/mermaid/dist/mermaid.min.js",
     "StatusbarMessageTimeout": 10000,
     "executablePath": "",
+    "browser": {
+      "name": "chrome",
+      "version": "",
+      "channel": "",
+      "cacheDir": "",
+      "executablePath": ""
+    },
     "orientation": "portrait",
     "scale": 1,
     "displayHeaderFooter": true,
