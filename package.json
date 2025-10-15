@@ -27,6 +27,7 @@
     "mkdirp": "^1.0.3",
     "mustache": "^4.0.1",
     "puppeteer-core": "^24.23.0",
+    "puppeteer-core-v2": "npm:puppeteer-core@2.1.1",
     "rimraf": "^3.0.2"
   }
 }

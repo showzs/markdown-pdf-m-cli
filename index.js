@@ -15,7 +15,6 @@ const mkdirp = require('mkdirp');
 const mustache = require('mustache');
 const rimraf = require('rimraf');
 
-const puppeteer = require('puppeteer-core');
 const {
   install: installBrowser,
   Browser,
@@ -23,16 +22,42 @@ const {
   resolveBuildId,
   getInstalledBrowsers
 } = require('@puppeteer/browsers');
-const { PUPPETEER_REVISIONS } = require('puppeteer-core/lib/cjs/puppeteer/revisions.js');
 
 const DEFAULT_CONFIG_FILE = path.join(__dirname, 'config', 'defaults.json');
 const USER_CONFIG_CANDIDATE = 'markdown-pdf.config.json';
 const SUPPORTED_TYPES = ['html', 'pdf', 'png', 'jpeg'];
 const BROWSER_CACHE_DIR = path.join(os.homedir(), '.cache', 'markdown-pdf-m-cli');
 const DEFAULT_BROWSER_NAME = 'chrome';
+const DEFAULT_PUPPETEER_VARIANT = 'modern';
+
+const PUPPETEER_VARIANTS = {
+  modern: {
+    id: 'modern',
+    label: 'puppeteer-core@^24.23.0',
+    requireModule: () => require('puppeteer-core'),
+    requireRevisions: () => require('puppeteer-core/lib/cjs/puppeteer/revisions.js').PUPPETEER_REVISIONS
+  },
+  legacy: {
+    id: 'legacy',
+    label: 'puppeteer-core@2.1.1',
+    requireModule: () => require('puppeteer-core-v2'),
+    requireRevisions: () => {
+      const pkg = require('puppeteer-core-v2/package.json');
+      const revision = pkg?.puppeteer?.chromium_revision;
+      if (!revision) {
+        return {};
+      }
+      return {
+        chromium: revision,
+        chrome: revision,
+        'chrome-headless-shell': revision
+      };
+    }
+  }
+};
 
 let INSTALL_CHECK = false;
-let cachedExecutablePath = null;
+const cachedExecutables = new Map();
 
 function getBrowserCacheDir(customDir) {
   if (typeof customDir === 'string' && customDir.trim().length > 0) {
@@ -60,6 +85,55 @@ function resolveExecutableOverride(customPath) {
     }
   }
   return null;
+}
+
+function normalizeVariantKey(value) {
+  if (!value) {
+    return DEFAULT_PUPPETEER_VARIANT;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  switch (normalized) {
+    case 'modern':
+    case 'latest':
+    case 'current':
+      return 'modern';
+    case 'legacy':
+    case 'v2':
+    case '2':
+    case 'puppeteer@2':
+    case 'puppeteer-core@2':
+    case '2.1.1':
+    case 'old':
+      return 'legacy';
+    default:
+      return normalized;
+  }
+}
+
+function resolvePuppeteerVariant(markdownPdfConfig) {
+  const browserConfig = isPlainObject(markdownPdfConfig?.browser) ? markdownPdfConfig.browser : {};
+  const envPreference = process.env.MARKDOWN_PDF_PUPPETEER_VARIANT || process.env.MARKDOWN_PDF_PUPPETEER_CORE;
+  const preference = pickFirstNonEmptyString(browserConfig.puppeteerCore, browserConfig.puppeteerVariant, browserConfig.runtime, envPreference, DEFAULT_PUPPETEER_VARIANT);
+  const key = normalizeVariantKey(preference);
+  const variant = PUPPETEER_VARIANTS[key] || PUPPETEER_VARIANTS[DEFAULT_PUPPETEER_VARIANT];
+  if (!variant.module) {
+    variant.module = variant.requireModule();
+  }
+  if (!variant.revisions) {
+    variant.revisions = variant.requireRevisions();
+  }
+  return {
+    id: variant.id,
+    label: variant.label,
+    module: variant.module,
+    revisions: variant.revisions
+  };
+}
+
+function computeCacheKey(variantId, browserName, requestedTag, cacheDir) {
+  const tagPart = requestedTag && requestedTag.length > 0 ? requestedTag : 'default';
+  const cachePart = cacheDir && cacheDir.length > 0 ? `:${path.resolve(cacheDir)}` : '';
+  return `${variantId}:${browserName}:${tagPart}${cachePart}`;
 }
 
 function pickFirstNonEmptyString(...values) {
@@ -91,7 +165,7 @@ function mapBrowserNameToEnum(name) {
   }
 }
 
-function normalizeBrowserOptions(markdownPdfConfig) {
+function normalizeBrowserOptions(markdownPdfConfig, puppeteerVariant) {
   const browserConfig = isPlainObject(markdownPdfConfig?.browser) ? markdownPdfConfig.browser : {};
   const nameInput = pickFirstNonEmptyString(browserConfig.name, DEFAULT_BROWSER_NAME);
   const versionTag = pickFirstNonEmptyString(browserConfig.version, browserConfig.buildId, browserConfig.revision);
@@ -106,11 +180,13 @@ function normalizeBrowserOptions(markdownPdfConfig) {
     cacheDir,
     executablePath,
     displayName: (nameInput || DEFAULT_BROWSER_NAME).toLowerCase(),
-    originalTag: requestedTag
+    originalTag: requestedTag,
+    variantId: puppeteerVariant?.id || DEFAULT_PUPPETEER_VARIANT,
+    revisions: puppeteerVariant?.revisions || {}
   };
 }
 
-async function resolveBrowserBuild(browserOptions, platform) {
+async function resolveBrowserBuild(browserOptions, platform, revisionsMap) {
   const requestedTag = browserOptions.requestedTag;
   if (requestedTag) {
     const resolved = await resolveBuildId(browserOptions.browser, platform, requestedTag);
@@ -132,7 +208,7 @@ async function resolveBrowserBuild(browserOptions, platform) {
     return { buildId: latest, alias: 'latest' };
   }
 
-  const defaultRevision = PUPPETEER_REVISIONS[browserOptions.browser] || PUPPETEER_REVISIONS[DEFAULT_BROWSER_NAME];
+  const defaultRevision = revisionsMap?.[browserOptions.browser] || revisionsMap?.[DEFAULT_BROWSER_NAME];
   if (!defaultRevision) {
     throw new Error(`No default revision available for browser "${browserOptions.browser}". Please configure "markdownPdf.browser.version".`);
   }
@@ -363,7 +439,9 @@ async function exportDocument(html, inputPath, type, outputDirOverride, config) 
   }
 
   const markdownPdfConfig = config?.markdownPdf || {};
-  const executablePath = await ensureChromium(markdownPdfConfig, config);
+  const puppeteerVariant = resolvePuppeteerVariant(markdownPdfConfig);
+  const puppeteerModule = puppeteerVariant.module;
+  const executablePath = await ensureChromium(markdownPdfConfig, config, puppeteerVariant);
 
   const tmpFile = path.join(path.dirname(targetPath), `${path.basename(targetPath, '.' + type)}_tmp.html`);
   fs.writeFileSync(tmpFile, html, 'utf-8');
@@ -373,7 +451,7 @@ async function exportDocument(html, inputPath, type, outputDirOverride, config) 
     args: [`--lang=${detectLanguage(config)}`, '--no-sandbox', '--disable-setuid-sandbox']
   };
 
-  const browser = await puppeteer.launch(launchOptions);
+  const browser = await puppeteerModule.launch(launchOptions);
   const page = await browser.newPage();
   await page.setDefaultTimeout(0);
   await page.goto(pathToFileURL(tmpFile).toString(), { waitUntil: 'networkidle0' });
@@ -399,33 +477,39 @@ function detectLanguage(config) {
   return config?.language || process.env.LANG || process.env.LANGUAGE || 'en-US';
 }
 
-async function ensureChromium(markdownPdfConfig, config) {
-  const browserOptions = normalizeBrowserOptions(markdownPdfConfig);
+async function ensureChromium(markdownPdfConfig, config, puppeteerVariant) {
+  const browserOptions = normalizeBrowserOptions(markdownPdfConfig, puppeteerVariant);
   const overridePath = resolveExecutableOverride(browserOptions.executablePath);
   if (overridePath) {
     INSTALL_CHECK = true;
-    cachedExecutablePath = overridePath;
-    return cachedExecutablePath;
+    return overridePath;
   }
 
-  if (cachedExecutablePath && fs.existsSync(cachedExecutablePath)) {
+  const cacheKey = computeCacheKey(browserOptions.variantId, browserOptions.browser, browserOptions.requestedTag, browserOptions.cacheDir);
+  const cachedPath = cachedExecutables.get(cacheKey);
+  if (cachedPath && fs.existsSync(cachedPath)) {
     INSTALL_CHECK = true;
-    return cachedExecutablePath;
+    return cachedPath;
+  }
+  if (cachedPath && !fs.existsSync(cachedPath)) {
+    cachedExecutables.delete(cacheKey);
   }
 
   try {
-    const bundled = puppeteer.executablePath();
+    const executablePathFn = puppeteerVariant.module?.executablePath;
+    const bundled = typeof executablePathFn === 'function' ? executablePathFn() : null;
     if (bundled && fs.existsSync(bundled)) {
       INSTALL_CHECK = true;
-      cachedExecutablePath = bundled;
-      return cachedExecutablePath;
+      cachedExecutables.set(cacheKey, bundled);
+      return bundled;
     }
   } catch (error) {
     // ignore and attempt installation below
   }
 
-  cachedExecutablePath = await installChromium(config, browserOptions);
-  return cachedExecutablePath;
+  const installedPath = await installChromium(config, browserOptions);
+  cachedExecutables.set(cacheKey, installedPath);
+  return installedPath;
 }
 
 async function installChromium(config, browserOptions) {
@@ -435,7 +519,7 @@ async function installChromium(config, browserOptions) {
   if (!platform) {
     throw new Error('Unsupported platform for browser download.');
   }
-  const { buildId, alias } = await resolveBrowserBuild(browserOptions, platform);
+  const { buildId, alias } = await resolveBrowserBuild(browserOptions, platform, browserOptions.revisions);
   const label = formatBrowserLabel(browserOptions, buildId, alias);
 
   const cacheDir = getBrowserCacheDir(browserOptions.cacheDir);
