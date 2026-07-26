@@ -15,6 +15,23 @@ npm install
 npm run start -- --help
 ```
 
+## Tests
+
+Run the complete test suite:
+
+```bash
+npm test
+```
+
+Run one test file or filter by test name:
+
+```bash
+node --test test/core.test.js
+node --test --test-name-pattern="resolves output types" test/core.test.js
+```
+
+The tests use Node.js's built-in test runner and do not require Chromium downloads or external services.
+
 ## Usage
 
 ```bash

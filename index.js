@@ -225,7 +225,7 @@ function formatBrowserLabel(browserOptions, buildId, alias) {
   return `${browserOptions.browser} ${buildId}`;
 }
 
-(async () => {
+async function runCli() {
   await main().catch((error) => {
     console.error('[markdown-pdf-m-cli] ' + (error && error.message ? error.message : error));
     if (error && error.stack) {
@@ -233,7 +233,7 @@ function formatBrowserLabel(browserOptions, buildId, alias) {
     }
     process.exitCode = 1;
   });
-})();
+}
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -428,7 +428,7 @@ function resolveTypes(typesFromArgs, configType) {
   return normalized;
 }
 
-async function exportDocument(html, inputPath, type, outputDirOverride, config) {
+async function exportDocument(html, inputPath, type, outputDirOverride, config, runtime = {}) {
   const targetPath = resolveOutputPath(inputPath, type, outputDirOverride, config);
   ensureDirSync(path.dirname(targetPath));
 
@@ -439,9 +439,9 @@ async function exportDocument(html, inputPath, type, outputDirOverride, config) 
   }
 
   const markdownPdfConfig = config?.markdownPdf || {};
-  const puppeteerVariant = resolvePuppeteerVariant(markdownPdfConfig);
+  const puppeteerVariant = runtime.puppeteerVariant || resolvePuppeteerVariant(markdownPdfConfig);
   const puppeteerModule = puppeteerVariant.module;
-  const executablePath = await ensureChromium(markdownPdfConfig, config, puppeteerVariant);
+  const executablePath = runtime.executablePath || await ensureChromium(markdownPdfConfig, config, puppeteerVariant);
 
   const tmpFile = path.join(path.dirname(targetPath), `${path.basename(targetPath, '.' + type)}_tmp.html`);
   fs.writeFileSync(tmpFile, html, 'utf-8');
@@ -1021,3 +1021,29 @@ function Slug(string) {
       .replace(/-+$/, '')
   );
 }
+
+if (require.main === module) {
+  runCli();
+}
+
+module.exports = {
+  applyHeadingIds,
+  buildPdfOptions,
+  buildScreenshotOptions,
+  convertImgPath,
+  convertMarkdownToHtml,
+  deepMerge,
+  exportDocument,
+  fixHref,
+  loadConfig,
+  makeHtml,
+  normalizeBrowserOptions,
+  normalizeDimension,
+  normalizeVariantKey,
+  parseArgs,
+  resolveOutputPath,
+  resolvePuppeteerVariant,
+  resolveTypes,
+  setBooleanValue,
+  toNumber
+};
