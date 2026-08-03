@@ -33,9 +33,9 @@ const DEFAULT_PUPPETEER_VARIANT = 'modern';
 const PUPPETEER_VARIANTS = {
   modern: {
     id: 'modern',
-    label: 'puppeteer-core@^24.23.0',
+    label: 'puppeteer-core@^25.4.0',
     requireModule: () => require('puppeteer-core'),
-    requireRevisions: () => require('puppeteer-core/lib/cjs/puppeteer/revisions.js').PUPPETEER_REVISIONS
+    requireRevisions: () => require('puppeteer-core/lib/puppeteer/revisions.js').PUPPETEER_REVISIONS
   },
   legacy: {
     id: 'legacy',
@@ -497,7 +497,7 @@ async function ensureChromium(markdownPdfConfig, config, puppeteerVariant) {
 
   try {
     const executablePathFn = puppeteerVariant.module?.executablePath;
-    const bundled = typeof executablePathFn === 'function' ? executablePathFn() : null;
+    const bundled = typeof executablePathFn === 'function' ? await executablePathFn() : null;
     if (bundled && fs.existsSync(bundled)) {
       INSTALL_CHECK = true;
       cachedExecutables.set(cacheKey, bundled);
