@@ -28,6 +28,6 @@
     "mustache": "^4.0.1",
     "puppeteer-core": "^25.4.0",
     "puppeteer-core-v2": "npm:puppeteer-core@2.1.1",
-    "rimraf": "^3.0.2"
+    "rimraf": "^6.1.3"
   }
 }
