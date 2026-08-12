@@ -13,12 +13,10 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@puppeteer/browsers": "^3.0.6",
-    "cheerio": "^1.0.0-rc.12",
+    "cheerio": "^1.2.0",
     "emoji-images": "^0.1.1",
-    "gray-matter": "^4.0.2",
-    "highlight.js": "^11.11.1",
-    "markdown-it": "^14.2.0",
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^14.3.0",
     "markdown-it-checkbox": "^1.1.0",
     "markdown-it-container": "^2.0.0",
     "markdown-it-emoji": "^1.4.0",
@@ -26,8 +24,9 @@
     "markdown-it-plantuml": "^1.4.1",
     "mkdirp": "^1.0.3",
     "mustache": "^4.0.1",
-    "puppeteer-core": "^25.4.0",
+    "puppeteer-core": "^25.6.0",
     "puppeteer-core-v2": "npm:puppeteer-core@2.1.1",
-    "rimraf": "^6.1.3"
+    "rimraf": "^6.1.3",
+    "yaml": "^2.8.1"
   }
 }

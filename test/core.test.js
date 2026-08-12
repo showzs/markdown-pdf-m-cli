@@ -83,3 +83,20 @@ test('normalizes browser variants and numeric helpers', () => {
   assert.equal(cli.normalizeDimension('  '), undefined);
   assert.equal(cli.setBooleanValue(false, true), false);
 });
+
+test('parses YAML front matter and preserves Markdown content', () => {
+  assert.deepEqual(
+    cli.parseFrontMatter('---\r\nbreaks: true\r\nnested:\r\n  enabled: false\r\n---\r\n# Title'),
+    {
+      data: { breaks: true, nested: { enabled: false } },
+      content: '# Title'
+    }
+  );
+});
+
+test('leaves Markdown without front matter unchanged', () => {
+  assert.deepEqual(cli.parseFrontMatter('# Title'), {
+    data: {},
+    content: '# Title'
+  });
+});
