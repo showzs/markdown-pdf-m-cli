@@ -8,12 +8,12 @@ const url = require('url');
 const { pathToFileURL } = require('url');
 
 const cheerio = require('cheerio');
-const grayMatter = require('gray-matter');
 const highlightJs = require('highlight.js');
 const markdownIt = require('markdown-it');
 const mkdirp = require('mkdirp');
 const mustache = require('mustache');
 const rimraf = require('rimraf');
+const yaml = require('yaml');
 
 const {
   install: installBrowser,
@@ -33,7 +33,7 @@ const DEFAULT_PUPPETEER_VARIANT = 'modern';
 const PUPPETEER_VARIANTS = {
   modern: {
     id: 'modern',
-    label: 'puppeteer-core@^25.4.0',
+    label: 'puppeteer-core@^25.6.0',
     requireModule: () => require('puppeteer-core'),
     requireRevisions: () => require('puppeteer-core/lib/puppeteer/revisions.js').PUPPETEER_REVISIONS
   },
@@ -563,7 +563,7 @@ async function installChromium(config, browserOptions) {
 
 function convertMarkdownToHtml(filename, type, text, config) {
   const markdownPdfConfig = config?.markdownPdf || {};
-  const matterParts = grayMatter(text);
+  const matterParts = parseFrontMatter(text);
 
   const md = markdownIt({
     html: true,
@@ -678,6 +678,22 @@ function convertMarkdownToHtml(filename, type, text, config) {
   }
 
   return md.render(matterParts.content);
+}
+
+function parseFrontMatter(text) {
+  const matterParts = {
+    data: {},
+    content: text
+  };
+  const frontMatter = /^---\r?\n([\s\S]*?)^---(?:\r?\n|$)/m.exec(text);
+
+  if (!frontMatter) {
+    return matterParts;
+  }
+
+  matterParts.data = yaml.parse(frontMatter[1]) || {};
+  matterParts.content = text.slice(frontMatter[0].length);
+  return matterParts;
 }
 
 function makeHtml(data, inputPath, config) {
@@ -1041,6 +1057,7 @@ module.exports = {
   normalizeDimension,
   normalizeVariantKey,
   parseArgs,
+  parseFrontMatter,
   resolveOutputPath,
   resolvePuppeteerVariant,
   resolveTypes,
