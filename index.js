@@ -36,23 +36,6 @@ const PUPPETEER_VARIANTS = {
     label: 'puppeteer-core@^25.6.0',
     requireModule: () => require('puppeteer-core'),
     requireRevisions: () => require('puppeteer-core/lib/puppeteer/revisions.js').PUPPETEER_REVISIONS
-  },
-  legacy: {
-    id: 'legacy',
-    label: 'puppeteer-core@2.1.1',
-    requireModule: () => require('puppeteer-core-v2'),
-    requireRevisions: () => {
-      const pkg = require('puppeteer-core-v2/package.json');
-      const revision = pkg?.puppeteer?.chromium_revision;
-      if (!revision) {
-        return {};
-      }
-      return {
-        chromium: revision,
-        chrome: revision,
-        'chrome-headless-shell': revision
-      };
-    }
   }
 };
 
@@ -104,7 +87,7 @@ function normalizeVariantKey(value) {
     case 'puppeteer-core@2':
     case '2.1.1':
     case 'old':
-      return 'legacy';
+      return 'modern';
     default:
       return normalized;
   }

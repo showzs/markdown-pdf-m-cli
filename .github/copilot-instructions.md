@@ -52,7 +52,7 @@ Browser output tests use stubs and do not download Chromium or call external ser
 - Markdown front matter can override selected rendering behavior such as `breaks`, `emoji`, `plantumlOpenMarker`, and `plantumlCloseMarker`; configuration remains the fallback.
 - Non-HTML outputs must use browser-readable `file://` URLs for local images and styles. HTML output preserves web-oriented image references differently, so changes to `convertImgPath` or style resolution should account for the requested output type.
 - HTML is assembled through Mustache with triple-braced `style`, `mermaid`, and `content` values. The template and bundled CSS files are part of the rendering contract.
-- Browser selection supports `chrome`, `chromium`, and `chrome-headless-shell`, plus modern Puppeteer (default) and the legacy `puppeteer-core@2.1.1` compatibility path. Executable paths and cache locations may come from configuration or `MARKDOWN_PDF_PUPPETEER_EXECUTABLE_PATH`, `MARKDOWN_PDF_EXECUTABLE_PATH`, and `MARKDOWN_PDF_BROWSER_CACHE`.
+- Browser selection supports `chrome`, `chromium`, and `chrome-headless-shell` with the current Puppeteer runtime. Legacy/v2 variant settings fall back to modern. Executable paths and cache locations may come from configuration or `MARKDOWN_PDF_PUPPETEER_EXECUTABLE_PATH`, `MARKDOWN_PDF_EXECUTABLE_PATH`, and `MARKDOWN_PDF_BROWSER_CACHE`.
 - Browser downloads are cached under `~/.cache/markdown-pdf-m-cli` by default and are keyed by Puppeteer variant, browser, requested build, and cache directory. Avoid bypassing this cache when changing installation logic.
 - Proxy configuration is read from `http.proxy` and applied to `HTTP_PROXY`/`HTTPS_PROXY` before browser resolution or download.
 

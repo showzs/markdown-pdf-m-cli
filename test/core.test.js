@@ -77,7 +77,8 @@ test('builds PDF and screenshot options from configuration', () => {
 });
 
 test('normalizes browser variants and numeric helpers', () => {
-  assert.equal(cli.normalizeVariantKey('2.1.1'), 'legacy');
+  assert.equal(cli.normalizeVariantKey('2.1.1'), 'modern');
+  assert.equal(cli.normalizeVariantKey('legacy'), 'modern');
   assert.equal(cli.normalizeVariantKey('latest'), 'modern');
   assert.equal(cli.toNumber('bad', 7), 7);
   assert.equal(cli.normalizeDimension('  '), undefined);
