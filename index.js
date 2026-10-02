@@ -10,9 +10,7 @@ const { pathToFileURL } = require('url');
 const cheerio = require('cheerio');
 const highlightJs = require('highlight.js');
 const markdownIt = require('markdown-it');
-const mkdirp = require('mkdirp');
 const mustache = require('mustache');
-const rimraf = require('rimraf');
 const yaml = require('yaml');
 
 const {
@@ -450,7 +448,7 @@ async function exportDocument(html, inputPath, type, outputDirOverride, config, 
   await browser.close();
 
   if (!markdownPdfConfig.debug && fs.existsSync(tmpFile)) {
-    rimraf.sync(tmpFile);
+    fs.rmSync(tmpFile, { force: true });
   }
 
   console.log(`[markdown-pdf-m-cli] Saved: ${targetPath}`);
@@ -950,7 +948,7 @@ function ensureDirSync(dir) {
   if (!dir) {
     return;
   }
-  mkdirp.sync(dir);
+  fs.mkdirSync(dir, { recursive: true });
 }
 
 function setProxy(config) {
