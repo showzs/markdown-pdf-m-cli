@@ -50,6 +50,20 @@ markdown-pdf-m <input-file> [options]
 
 If no `--type` is provided, the tool uses the value from `config/defaults.json` (defaults to `pdf`).
 
+## Math
+
+Inline and display math are rendered with KaTeX:
+
+```markdown
+Inline: $\sqrt{3x-1}+(1+x)^2$
+
+$$
+\frac{a}{b}
+$$
+```
+
+KaTeX styles and fonts are embedded in the output only when the document contains math, so HTML and browser-rendered files work without loading external KaTeX assets.
+
 ## Configuration
 
 The CLI reads configuration from the bundled `config/defaults.json`. You can create a `markdown-pdf.config.json` in your project directory (or point to a file with `--config`) to override any setting. The structure mirrors the original VS Code settings, for example:
