@@ -56,6 +56,31 @@ test('converts Markdown features and front matter to HTML', () => {
   assert.match(html, /Hello<br>\nworld/);
 });
 
+test('renders inline and display math with self-contained KaTeX styles', () => {
+  const markdown = [
+    'Inline: $\\sqrt{3x-1}+(1+x)^2$',
+    '',
+    '$$',
+    '\\frac{a}{b}',
+    '$$'
+  ].join('\n');
+  const content = cli.convertMarkdownToHtml(inputPath, 'html', markdown, {
+    markdownPdf: {
+      emoji: false,
+      'markdown-it-include': { enable: false }
+    }
+  });
+
+  assert.match(content, /class="katex"/);
+  assert.match(content, /class="katex-display"/);
+
+  const html = cli.makeHtml(content, inputPath, {
+    markdownPdf: { includeDefaultStyles: false, highlight: false }
+  });
+  assert.match(html, /url\(data:font\/woff2;base64,/);
+  assert.doesNotMatch(html, /url\(fonts\//);
+});
+
 test('uses file URLs for local images in browser output', () => {
   const html = cli.convertMarkdownToHtml(
     inputPath,
@@ -77,4 +102,5 @@ test('assembles CSS, Mermaid, and content through the template', () => {
   assert.match(html, /<script src="https:\/\/example\.test\/mermaid\.js"><\/script>/);
   assert.match(html, /<p>content<\/p>/);
   assert.match(html, /<title>markdown-pdf-m-cli-test\.md<\/title>/);
+  assert.doesNotMatch(html, /url\(data:font\//);
 });

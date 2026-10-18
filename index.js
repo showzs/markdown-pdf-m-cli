@@ -566,6 +566,10 @@ function convertMarkdownToHtml(filename, type, text, config) {
     }
   });
 
+  md.use(require('@vscode/markdown-it-katex').default, {
+    katex: require('katex')
+  });
+
   const defaultRender = md.renderer.rules.image || function (tokens, idx, options, env, self) {
     return self.renderToken(tokens, idx, options);
   };
@@ -687,7 +691,7 @@ function makeHtml(data, inputPath, config) {
 
   const view = {
     title: path.basename(inputPath),
-    style: readStyles(inputPath, config),
+    style: readStyles(inputPath, config, /class="katex[ "-]/.test(data)),
     content: data,
     mermaid: markdownPdfConfig.mermaidServer ? `<script src="${markdownPdfConfig.mermaidServer}"></script>` : ''
   };
@@ -695,7 +699,7 @@ function makeHtml(data, inputPath, config) {
   return mustache.render(template, view);
 }
 
-function readStyles(resourcePath, config) {
+function readStyles(resourcePath, config, includeKatex = false) {
   const markdownPdfConfig = config?.markdownPdf || {};
   const markdownConfig = config?.markdown || {};
 
@@ -724,10 +728,34 @@ function readStyles(resourcePath, config) {
     style += makeCss(path.join(__dirname, 'styles', 'markdown-pdf.css'));
   }
 
+  if (includeKatex) {
+    style += makeKatexCss();
+  }
+
   const customStyles = Array.isArray(markdownPdfConfig.styles) ? markdownPdfConfig.styles : [];
   style += buildStyleLinks(customStyles, resourcePath, config);
 
   return style;
+}
+
+function makeKatexCss() {
+  const katexDistPath = path.join(__dirname, 'node_modules', 'katex', 'dist');
+  let css = fs.readFileSync(path.join(katexDistPath, 'katex.min.css'), 'utf-8');
+  css = css.replace(/url\(fonts\/([^)]+)\)/g, (match, filename) => {
+    const mimeTypes = {
+      '.ttf': 'font/ttf',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2'
+    };
+    const mimeType = mimeTypes[path.extname(filename).toLowerCase()];
+    if (!mimeType) {
+      throw new Error(`Unsupported KaTeX font format: ${filename}`);
+    }
+    const fontPath = path.join(katexDistPath, 'fonts', filename);
+    const font = fs.readFileSync(fontPath).toString('base64');
+    return `url(data:${mimeType};base64,${font})`;
+  });
+  return `\n<style>\n${css}\n</style>\n`;
 }
 
 function resolveHighlightStyle(styleName) {
